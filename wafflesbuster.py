@@ -10,6 +10,8 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 from datetime import datetime
+import logging
+logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 urllib3.disable_warnings()
 
@@ -79,7 +81,23 @@ def GetStatusCode(status_string):
     return status
 
 
+def replace_output(new_text):
+    # Move the cursor to the beginning of the line
+    sys.stdout.write('\r')
+    # Clear the line
+    sys.stdout.write('\033[K')
+    # Print the new text
+    sys.stdout.write(str(new_text))
+    # Flush the output to ensure it's displayed immediately
+    sys.stdout.flush()
+
+def printrep(string1):
+    replace_output('')
+    print(string1)
+
+count_dir = 0
 def GetRequest(url1, dir1, event):
+    global count_dir
     try:
         if (output): 
             file = open(output, "w+")
@@ -91,14 +109,15 @@ def GetRequest(url1, dir1, event):
                 stat_code = Colors(stat_code)
             if (res.status_code in status): # Sucess if status code is e.g. 302/200
                 output_string = f"Found {dir1} [{stat_code}]"
-                print(output_string)
+                replace_output('')
+                printrep(output_string)
                 if (output): 
                     file.write(output_string)
                 
                 break
             elif (res.status_code in status_pause):
-                print(f"{url2} triggered Pause status: [{stat_code}]")
-                print("If this is due to IP block, then change your IP first.")
+                printrep(f"{url2} triggered Pause status: [{stat_code}]")
+                printrep("If this is due to IP block, then change your IP first.")
                 event.clear() # Pauses threads
                 input("Press any key to try again..")
                 event.set() # Unpauses threads
@@ -107,11 +126,13 @@ def GetRequest(url1, dir1, event):
                 #print(f"{url2} Not success [{stat_code}]")
                 break
         
+        count_dir = count_dir + 1    
+        replace_output(f'Running - {count_dir} of {dir_num}')
         if (output): 
             file.close()
             
     except Exception as ex:
-        print(ex)
+        printrep(ex)
 
 def create_threads(url_string, direc_list, max_threads):
     event = Event()
@@ -135,6 +156,7 @@ if (not directory_file):
 
 
 dir_list = open(directory_file).read().split('\n') # Opens directory wordlist and transforms it into a list ['dir1','dir2',..]    	
+dir_num = len(dir_list)
 url = CheckSlash(url) # Check if url has slash, if not added it.
 status = GetStatusCode(status)
 status_pause = GetStatusCode(status_pause)
@@ -156,4 +178,4 @@ create_threads(url, dir_list, threads_num)
 
 EndTime = time.perf_counter()
 RunTime = EndTime - StartTime
-print(f"* Finished scan in {round(RunTime, 3)}s.")
+printrep(f"* Finished scan in {round(RunTime, 3)}s.")
